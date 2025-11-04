@@ -1,0 +1,76 @@
+name: Push AzureML Pipeline Artifacts
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_ML_WORKSPACE: ${{ secrets.AZURE_ML_WORKSPACE }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  push-azureml-artifacts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml azure-identity azureml-core
+        
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Push pipeline artifacts to AzureML
+      run: |
+        echo "Pushing pipeline artifacts to Azure ML workspace"
+        python -c "
+        from azure.ai.ml import MLClient
+        from azure.identity import DefaultAzureCredential
+        import os
+        
+        try:
+            # Initialize ML Client
+            ml_client = MLClient(
+                DefaultAzureCredential(),
+                subscription_id=os.environ.get('AZURE_SUBSCRIPTION_ID'),
+                resource_group_name=os.environ.get('AZURE_RESOURCE_GROUP'),
+                workspace_name=os.environ.get('AZURE_ML_WORKSPACE')
+            )
+            print('Successfully connected to Azure ML workspace')
+            
+            # Add your pipeline artifact push logic here
+            # Example: ml_client.jobs.create_or_update(pipeline_job)
+            
+        except Exception as e:
+            print(f'Error: {e}')
+            exit(1)
+        "
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: pipeline-artifacts
+        path: |
+          outputs/
+          logs/
+          artifacts/
+        retention-days: 30
